@@ -103,7 +103,7 @@ def validate(results: list[dict], docs: list[Path]) -> list[str]:
 
 
 def main() -> None:
-    docs = sorted(p for p in EXAM_DIR.iterdir() if p.is_file())
+    docs = sorted(p for p in EXAM_DIR.iterdir() if p.is_file() and p.suffix.lower() in (".html", ".htm", ".pdf", ".eml"))
     results = []
     for doc in docs:
         r = run_one(doc)

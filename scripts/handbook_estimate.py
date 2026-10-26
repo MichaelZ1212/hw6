@@ -109,7 +109,7 @@ are extra and change from call to call.
   because the handbook is sent on every call, so it makes up most of the input tokens.
 
 **Assumptions to check against real usage later:**
-1. The handbook is placed first in the prompt and never changes, so every call shares the same prefix.
+1. The instructions + handbook prefix (agent instructions first, then the full handbook) never changes, so every call shares the same prefix.
 2. Calls come close enough together that the cache stays warm. If the cache expires, the next call
    pays the write price again.
 3. The billed token count will be a little above {tokens:,} because of message formatting tokens.

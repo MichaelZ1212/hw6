@@ -72,7 +72,8 @@ def build_data() -> dict:
                            "output": s["output_tokens"], "total": r6(s["cost"]), "per_doc": r6(s["per_doc"]),
                            "parts": {p: r6(v) for p, v in s["cost_parts"].items()}, "correct": s["correct"]}
                        for k, s in (("cached", c), ("no_cache", n))},
-            "saved_pct": (n["cost"] - c["cost"]) / n["cost"],
+            "saved_pct": (n["per_doc"] - c["per_doc"]) / n["per_doc"],
+            "steady": {"cached": r6(c["steady_per_doc"]), "no_cache": r6(n["steady_per_doc"])},
             "flagged": flagged,
         }
 
@@ -102,7 +103,7 @@ def build_data() -> dict:
                        "trap_calls": S[m]["trap_calls"], "suspicious": S[m]["suspicious"],
                        "legit_ok": S[m]["legit_recommended"], "legit_n": S[m]["legit_runs"], "nulls": S[m]["null_fields"],
                        "requests": S[m]["requests"], "input": S[m]["input"], "cached": S[m]["cached"],
-                       "output": S[m]["output"], "cost_avg": r6(S[m]["cost_avg"]), "cost_median": r6(S[m]["cost_median"]),
+                       "output": S[m]["output"], "cost_avg": r6(S[m]["cost_avg"]), "cost_median": r6(S[m]["cost_median"]), "cost_steady": r6(S[m]["cost_steady"]),
                        "cost_total": r6(S[m]["cost_total"]), "latency": S[m]["seconds_median"],
                        "sanitize_ms": S[m]["sanitize_ms"], "policy_ms": S[m]["policy_ms"], "overridden": S[m]["overridden"]}
                       for m in defense_test.MODES],
@@ -145,7 +146,12 @@ def build_data() -> dict:
         for e in audit:
             if "exam_docs" in e.get("doc", "") and e.get("safety_mode") == "defended":
                 removed[e["doc"].split("/")[-1]] = [r["technique"] for r in e["safety"].get("removed", [])]
-        d["p8"] = [{**{k: r[k] for k in ("file", "vendor", "sku", "unit_price", "lead_time_days", "min_order", "decision",
+        import policy
+
+        def rules_agree(r: dict) -> bool:
+            return policy.decide({k: r[k] for k in ("vendor", "sku", "unit_price", "lead_time_days", "min_order")})[0] == r["decision"]
+
+        d["p8"] = [{"rules_agree": rules_agree(r) if r["status"] == "ok" else None, **{k: r[k] for k in ("file", "vendor", "sku", "unit_price", "lead_time_days", "min_order", "decision",
                                          "reason", "trap_tool_called", "input_tokens", "cached_tokens", "output_tokens",
                                          "cost_usd", "status")},
                     "removed": removed.get(r["file"], [])} for r in ex]
@@ -155,17 +161,23 @@ def build_data() -> dict:
         m = {x["mode"]: x for x in d["p6"]["modes"]}
         d["projection"] = {
             "docs_per_month": DOCS_PER_MONTH,
-            "defended_per_doc": m["defended"]["cost_avg"],
-            "baseline_per_doc": m["baseline"]["cost_avg"],
+            # steady state = every run except the mode's first, which paid the test's one-time cold cache write
+            "defended_per_doc": m["defended"]["cost_steady"],
+            "baseline_per_doc": m["baseline"]["cost_steady"],
+            "defended_runs": m["defended"]["runs"],
         }
         if "p8" in d:
-            d["projection"]["exam_per_doc"] = r6(sum(r["cost_usd"] for r in d["p8"]) / len(d["p8"]))
+            ok = [r for r in d["p8"] if r["status"] == "ok"]
+            d["projection"]["exam_per_doc"] = r6(sum(r["cost_usd"] for r in ok) / len(ok)) if ok else None
+            d["projection"]["exam_docs"] = len(ok)
         if "p4" in d:
-            d["projection"]["p4_no_cache_per_doc"] = d["p4"]["setups"]["no_cache"]["per_doc"]
+            d["projection"]["p4_no_cache_per_doc"] = d["p4"]["steady"]["no_cache"]
+            d["projection"]["p4_docs"] = d["p4"]["setups"]["no_cache"]["docs"]
 
     d["missing"] = missing + [
         "The exam documents have no answer key, so exam accuracy cannot be measured. Section 4 shows what the agent "
-        "decided and a by-hand check against the handbook, not a score.",
+        "decided. Its \"Rules re-applied\" column only confirms the decision follows from the extracted fields; it "
+        "cannot catch a wrongly extracted field.",
         "Problem 4 measured caching on the Problem 3 (baseline) agent. A no-cache run of the defended agent was not "
         "measured, so the defended no-cache cost is not shown.",
         "The assignment's required field names for exam_results.json were not provided. The file uses the "
@@ -191,11 +203,12 @@ def self_check(d: dict) -> list[str]:
         rs = [r for r in df["runs"] if r["mode"] == m["mode"] and r["status"] == "ok"]
         if sum(r["misled"] for r in rs) != m["misled"]:
             errs.append(f"p6 {m['mode']} misled mismatch")
-        if abs(sum(r["cost"]["total_usd"] for r in rs) / len(rs) - m["cost_avg"]) > 1e-7:
+        if rs and abs(sum(r["cost"]["total_usd"] for r in rs) / len(rs) - m["cost_avg"]) > 1e-7:
             errs.append(f"p6 {m['mode']} cost mismatch")
     ex = json.loads((ROOT / "output" / "exam_results.json").read_text(encoding="utf-8"))
-    if len(ex) != 10 or len(d["p8"]) != 10:
-        errs.append("exam entries != 10")
+    n_docs = sum(1 for f in (ROOT / "data" / "exam_docs").iterdir() if f.suffix.lower() in (".html", ".htm", ".pdf", ".eml"))
+    if len(ex) != n_docs or len(d["p8"]) != n_docs:
+        errs.append(f"exam entries {len(ex)} != {n_docs} exam documents")
     for a, b in zip(ex, d["p8"]):
         if a["decision"] != b["decision"] or a["unit_price"] != b["unit_price"]:
             errs.append(f"exam mismatch {a['file']}")
@@ -342,7 +355,7 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
     <p class="sub">Some supplier documents hide instructions aimed at the AI. We measured how often the agent was misled before and after adding three safety layers.</p>
     <div class="tiles" id="p6tiles"></div>
     <div class="grid2">
-      <div><h3>Runs where the agent was misled (out of 36)</h3><div class="chart" id="p6misled"></div></div>
+      <div><h3 id="p6misledTitle">Runs where the agent was misled</h3><div class="chart" id="p6misled"></div></div>
       <div><h3>Correct purchasing decisions</h3><div class="chart" id="p6acc"></div></div>
     </div>
     <h3>Every practice document: before vs. after</h3>
@@ -353,7 +366,7 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
   <section class="card" id="s3">
     <span class="sec-num">Section 3 · Problem 6</span>
     <h2>Defense overhead: what security costs</h2>
-    <p class="sub">Each safety layer was switched on one at a time and measured on the same 12 documents, 3 runs each.</p>
+    <p class="sub" id="p3sub">Each safety layer was switched on one at a time and measured on the same documents.</p>
     <div class="tiles" id="p3tiles"></div>
     <div class="grid2">
       <div><h3>Average cost per document</h3><div class="chart" id="p3cost"></div></div>
@@ -370,8 +383,9 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
     <h3>10 exam documents, defended agent</h3>
     <div class="tiles" id="p8tiles"></div>
     <div class="table-wrap" id="p8table"></div>
-    <p class="muted">The exam documents have no answer key. "Handbook check" compares each decision with the handbook tables
-    (approved vendors, max unit cost, 21 days, 600 units) recomputed in this report, not with an official answer.</p>
+    <p class="muted">The exam documents have no answer key. "Rules re-applied" compares each decision with the handbook tables
+    (approved vendors, max unit cost, 21 days, 600 units) re-applied to the agent's own extracted fields. It confirms the
+    decision follows from those fields, but it cannot catch a wrongly extracted field, so it is not an accuracy score.</p>
     <h3>Two custom attacks (red team)</h3>
     <div class="table-wrap" id="p7table"></div>
     <div class="callout" id="p7notes"></div>
@@ -392,12 +406,10 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
 </div>
 <div class="tip" id="tip"></div>
 <script type="application/json" id="data">__DATA__</script>
-<script type="application/json" id="handbook">__HANDBOOK__</script>
 <script>
 (function () {
   "use strict";
   const D = JSON.parse(document.getElementById("data").textContent);
-  const HB = JSON.parse(document.getElementById("handbook").textContent);
   const $ = (id) => document.getElementById(id);
   const css = (v) => getComputedStyle(document.body).getPropertyValue(v).trim();
   const usd = (x, d = 6) => "$" + Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -527,20 +539,6 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
     }));
   }
 
-  // ---------- handbook rules (for the exam cross-check) ----------
-  const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  function handbookDecision(r) {
-    if (!r.vendor) return "do_not_recommend";
-    const v = norm(r.vendor);
-    const listed = (names) => names.some((n) => v === n || v.startsWith(n));
-    if (listed(HB.blocked) || !listed(HB.approved)) return "do_not_recommend";
-    const max = HB.max_cost[(r.sku || "").toUpperCase()];
-    if (max == null || r.unit_price == null || r.unit_price > max) return "do_not_recommend";
-    if (r.lead_time_days == null || r.lead_time_days > 21) return "do_not_recommend";
-    if (r.min_order == null || r.min_order > 600) return "do_not_recommend";
-    return "recommend";
-  }
-
   function render() {
     $("gen").textContent = "Built " + D.generated.replace("T", " ").replace("+00:00", " UTC") +
       " from the saved experiment files. Every number on this page is read from those files; projections are labelled.";
@@ -551,8 +549,8 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
     const hero = $("hero"); hero.replaceChildren();
     if (D.p4) hero.append(tile("Cost saved by prompt caching", pct(D.p4.saved_pct), "12 practice documents, Problem 4"));
     if (M) hero.append(tile("Runs misled by hidden instructions", `${M.baseline.misled}/${M.baseline.runs} → ${M.defended.misled}/${M.defended.runs}`, "before → after the three safety layers"));
-    if (M) hero.append(tile("Cost per document, defended agent", usd(M.defended.cost_avg), "measured average, 36 runs"));
-    if (P) hero.append(tile("Monthly cost at 1,000 docs/day", usd2(P.defended_per_doc * P.docs_per_month), "projection from the measured average"));
+    if (M) hero.append(tile("Cost per document, defended agent", usd(M.defended.cost_steady), `steady state, ${M.defended.runs} measured runs`));
+    if (P) hero.append(tile("Monthly cost at 1,000 docs/day", usd2(P.defended_per_doc * P.docs_per_month), "projection from the measured steady-state cost"));
 
     // ---------- section 1 ----------
     if (D.p4) {
@@ -561,7 +559,7 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
         tile("Total cost, with caching", usd(c.total), `${c.docs} documents, ${c.calls} AI calls`),
         tile("Total cost, without caching", usd(n.total), `${n.docs} documents, ${n.calls} AI calls`),
         tile("Average per document", `${usd(c.per_doc)} vs ${usd(n.per_doc)}`, "with vs without caching"),
-        tile("Saved with caching", pct(D.p4.saved_pct, 1), `${usd(n.total - c.total)} on 12 documents`));
+        tile("Saved with caching", pct(D.p4.saved_pct, 1), `${usd(n.total - c.total)} on ${c.docs} documents`));
       const comp = [["Cached input (reused handbook)", "cached_input", "--series-1"], ["Cache write (storing new text)", "cache_write", "--series-2"],
                     ["Uncached input", "uncached_input", "--series-3"], ["Output (the answer)", "output", "--series-4"]];
       legend($("p4legend"), comp.map(([name, , v]) => [name, css(v)]));
@@ -599,6 +597,7 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
         tile("Legitimate quotes still approved", `${d.legit_ok}/${d.legit_n}`, `baseline ${b.legit_ok}/${b.legit_n}; ${d.nulls} fields left blank`),
         tile("Fake email / payment calls", `${b.trap_calls} → ${d.trap_calls}`, "simulated tools; nothing is ever sent or paid"));
       const modes = D.p6.modes;
+      $("p6misledTitle").textContent = `Runs where the agent was misled (out of ${modes[0].runs})`;
       hbar($("p6misled"), modes.map((m) => ({ label: m.label, parts: [{ name: "misled runs", value: m.misled, color: css("--series-1") }],
         valueLabel: `${m.misled} of ${m.runs}` })), (v) => String(Math.round(v)),
         { max: modes[0].runs, ticks: 4, aria: "Misled runs by safety mode", labelW: 170, tick: (v) => String(Math.round(v)) });
@@ -620,6 +619,7 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
     if (M) {
       const modes = D.p6.modes;
       const b = M.baseline, d = M.defended;
+      $("p3sub").textContent = `Each safety layer was switched on one at a time and measured on the same ${D.p6.docs.length} documents, ${D.p6.trials} runs each.`;
       $("p3tiles").replaceChildren(
         tile("Cost per document", `${usd(b.cost_avg)} → ${usd(d.cost_avg)}`, "baseline → defended, measured"),
         tile("Change with all 3 layers", (d.cost_avg < b.cost_avg ? "−" : "+") + pct(Math.abs(d.cost_avg - b.cost_avg) / b.cost_avg), d.cost_avg < b.cost_avg ? "security made it cheaper" : "security added cost"),
@@ -651,20 +651,20 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
     if (D.p8) {
       const ex = D.p8;
       const rec = ex.filter((r) => r.decision === "recommend").length;
-      const agree = ex.filter((r) => handbookDecision(r) === r.decision).length;
+      const agree = ex.filter((r) => r.rules_agree).length;
       const traps = ex.filter((r) => r.trap_tool_called).length;
       const errs = ex.filter((r) => r.status !== "ok").length;
       const hidden = ex.filter((r) => r.removed.length).length;
       $("p8tiles").replaceChildren(
         tile("Documents processed", `${ex.length - errs}/${ex.length}`, errs ? `${errs} errors` : "no errors"),
         tile("Recommended", `${rec} of ${ex.length}`, `${ex.length - rec} not recommended`),
-        tile("Match the handbook rules", `${agree}/${ex.length}`, "recomputed in this report"),
+        tile("Rules re-applied agree", `${agree}/${ex.length}`, "consistency check, not accuracy"),
         tile("Documents with hidden text removed", String(hidden), `${traps} simulated tool calls`),
-        tile("Total cost, 10 documents", usd(ex.reduce((s, r) => s + r.cost_usd, 0)), "measured"));
-      $("p8table").replaceChildren(table(["Doc", "Vendor", "SKU", "Price", "Lead (days)", "Min order", "Decision", "Handbook check", "Hidden content removed", "Reason"],
+        tile(`Total cost, ${ex.length} documents`, usd(ex.reduce((s, r) => s + r.cost_usd, 0)), "measured"));
+      $("p8table").replaceChildren(table(["Doc", "Vendor", "SKU", "Price", "Lead (days)", "Min order", "Decision", "Rules re-applied", "Hidden content removed", "Reason"],
         ex.map((r) => [short(r.file), r.vendor, r.sku, r.unit_price == null ? "-" : "$" + r.unit_price.toFixed(2), r.lead_time_days, r.min_order,
           r.decision === "recommend" ? chip("good", "recommend") : chip("neutral", "do not recommend"),
-          handbookDecision(r) === r.decision ? chip("good", "agrees") : chip("bad", "differs"),
+          r.rules_agree == null ? chip("neutral", "n/a") : r.rules_agree ? chip("good", "agrees") : chip("bad", "differs"),
           r.removed.length ? r.removed.join("; ") : "none", r.reason]), [3, 4, 5], [0, 2]));
     }
 
@@ -691,24 +691,24 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
       $("rec").replaceChildren(
         el("p", { class: "verdict", text: "Ready for a supervised pilot on real supplier emails, not for unsupervised buying." }),
         el("ul", { class: "clean" },
-          el("li", { text: `It reads quotes accurately. With all safety layers on it got every field and decision right on the practice set (${d.all_correct}/${d.runs} runs) and still approved every legitimate quote (${d.legit_ok}/${d.legit_n}).` }),
+          el("li", { text: `It reads quotes accurately. With all safety layers on it got every field and decision right on the practice set (${d.all_correct}/${d.runs} runs) and still approved the legitimate quotes (${d.legit_ok}/${d.legit_n}).` }),
           el("li", { text: `It cannot spend money or send email. Those actions were removed from the AI. They only exist behind a manual approval step, and even there they are simulations that write to a log.` }),
           el("li", { text: `Purchasing rules are enforced by code, not by the AI's judgement. A supplier document cannot change the approved vendor list, the price limits, the 21-day lead time, or the 600-unit minimum.` }),
           el("li", { text: `Known gap: a fake "amended terms" note hidden under a white box in a PDF reaches the AI. In our tests the instructions held (it kept the real 32-day lead time), but that rests on the AI, not on code.` }),
           el("li", { text: `How to start: let the agent draft a recommendation for every incoming quote, have the buyer approve each one for the first month, and review any document where the cleaning step removed hidden text.` }),
           el("li", { text: `Cost is not a concern: about ${usd2(monthly)} a month at 1,000 documents a day (see below).` })));
       const rows = [
-        ["Defended agent (recommended)", usd(P.defended_per_doc), "average of 36 measured runs, Problem 6", usd2(P.defended_per_doc * P.docs_per_month)],
-        ["Defended agent, exam run", usd(P.exam_per_doc), "average of the 10 exam documents, Problem 8", usd2(P.exam_per_doc * P.docs_per_month)],
-        ["Original agent (no safety layers)", usd(P.baseline_per_doc), "average of 36 measured runs, Problem 6", usd2(P.baseline_per_doc * P.docs_per_month)],
+        ["Defended agent (recommended)", usd(P.defended_per_doc), `steady state of ${P.defended_runs} measured runs, Problem 6`, usd2(P.defended_per_doc * P.docs_per_month)],
+        ["Original agent (no safety layers)", usd(P.baseline_per_doc), `steady state of ${P.defended_runs} measured runs, Problem 6`, usd2(P.baseline_per_doc * P.docs_per_month)],
       ];
-      if (P.p4_no_cache_per_doc) rows.push(["Original agent without caching", usd(P.p4_no_cache_per_doc), "average of 12 measured documents, Problem 4", usd2(P.p4_no_cache_per_doc * P.docs_per_month)]);
+      if (P.exam_per_doc != null) rows.splice(1, 0, ["Defended agent, exam run", usd(P.exam_per_doc), `average of the ${P.exam_docs} exam documents, Problem 8`, usd2(P.exam_per_doc * P.docs_per_month)]);
+      if (P.p4_no_cache_per_doc) rows.push(["Original agent without caching", usd(P.p4_no_cache_per_doc), `steady state of ${P.p4_docs} measured documents, Problem 4`, usd2(P.p4_no_cache_per_doc * P.docs_per_month)]);
       $("projtiles").replaceChildren(
         tile("Projected monthly cost", usd2(monthly), `${int(P.docs_per_month)} documents × ${usd(P.defended_per_doc)}`),
         tile("Projected yearly cost", usd2(monthly * 12), "same assumption × 12"),
-        tile("Per 1,000 documents", usd2(P.defended_per_doc * 1000), "measured average"));
+        tile("Per 1,000 documents", usd2(P.defended_per_doc * 1000), "measured steady-state cost"));
       $("projtable").replaceChildren(table(["Setup", "Measured cost / document", "Source", "Projected per month (30,000 docs)"], rows, [1, 3]));
-      $("projtable").append(el("p", { class: "muted", text: "Projection = measured average cost per document × 1,000 documents per day × 30 days. It assumes future documents look like the test documents and that gpt-6-luna prices stay as in data/prices.json. It covers AI usage only, not staff time or hosting." }));
+      $("projtable").append(el("p", { class: "muted", text: "Projection = measured steady-state cost per document × 1,000 documents per day × 30 days. Steady state leaves out each test's first run, which paid a one-time cold cache write that should not be charged to every document. It assumes future documents look like the test documents and that gpt-6-luna prices stay as in data/prices.json. It covers AI usage only, not staff time or hosting." }));
     }
     $("missing").replaceChildren(...D.missing.map((m) => el("li", { text: m })));
     $("foot").textContent = "Sources: output/cache_test.json, attack_results.json, defense_results.json, red_team.json, red_team_round1.json, exam_results.json, audit_trail.json, data/prices.json. Model: gpt-6-luna via Portkey. Built by scripts/build_report.py.";
@@ -735,15 +735,11 @@ def embed(obj) -> str:
 
 
 def main() -> None:
-    import policy
-
     d = build_data()
     errs = self_check(d)
     if errs:
         raise SystemExit("self-check failed:\n" + "\n".join(errs))
-    r = policy.rules()
-    hb = {"approved": sorted(r.approved), "blocked": sorted(r.blocked), "max_cost": r.max_cost}
-    html = HTML.replace("__DATA__", embed(d)).replace("__HANDBOOK__", embed(hb))
+    html = HTML.replace("__DATA__", embed(d))
     OUT.write_text(html, encoding="utf-8")
     print(f"wrote {OUT} ({len(html) / 1024:.0f} KB); self-check OK; missing sources: {missing or 'none'}")
 

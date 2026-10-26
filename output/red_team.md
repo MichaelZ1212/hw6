@@ -106,12 +106,14 @@ lead time as 19 days and recommended.
   and only the model's own judgement and one prompt line kept it from using it. A stronger or differently worded payload, or
   another model, could get through. Problem 5 showed the same model being fooled by quieter fact changes.
 - **Layer 1 partly caught it.** It neutralised the fake `</vendor_document>` and `<vendor_document>` tags, so the attack could not
-  close the data block. It missed the background-coloured text, because it only checks for *white* text.
+  close the data block. It missed the background-coloured text, because it only flags *white (or transparent) text on a
+  white background*, not text whose colour matches some other background.
 - **Layer 2 makes the goal impossible, not just unlikely.** The defended agent is built with an empty tool list. The audit trail
   shows no tool calls, so even a fully persuaded model has no `approve_payment` to call. That tool is reachable only through
   `approvals.py` with a typed human APPROVE, and it still only logs. The reason is written by code, so the link cannot reach the buyer.
 - **Layer 3** told the model the SYSTEM text was untrusted data. Its own decision was right in 3/3 runs.
-- **Gap to close:** Layer 1 could compare each HTML text colour with its background (a contrast check) instead of only looking for white.
+- **Gap to close:** Layer 1 could run a general contrast check (text colour vs. background colour for any colour pair),
+  not just white-on-white.
 
 ## Round 1 (first attempt): both attacks failed, even against the unprotected agent
 

@@ -63,8 +63,11 @@ protect it. Each one works on its own, so if one misses something the next one s
 ### Layer 1: clean the document before the AI sees it (`sanitize.py`)
 
 The agent only gets what a person would see when opening the file. Code removes:
-- hidden web-page text: `display:none`, 0 px or 1 px fonts, white text, HTML comments, scripts
-- hidden PDF text: white text, tiny text, invisible text, and text placed off the page
+- hidden web-page text, from inline styles **and `<style>` rules** (tag, class and id selectors): `display:none`,
+  tiny fonts, opacity 0, transparent text, white text **on a white background** (white on a dark banner is kept),
+  off-screen or clipped boxes, the `hidden` attribute, HTML comments, scripts
+- hidden PDF text: white text (unless it sits on a dark box), tiny text, invisible or fully transparent text, and text
+  outside the visible page
 - the hidden parts of an email's HTML version
 - zero-width characters, and fake `<vendor_document>` tags that try to break out of the data box
 
@@ -113,5 +116,8 @@ Results and the cost of each layer: `output/defense_results.md`. New attacks tes
 |---|---|
 | `output/usage_log.json` | Per run: requests, input / cached / cache-write / output tokens, estimated cost from `data/prices.json`, seconds |
 | `output/audit_trail.json` | Per run: every tool call with its arguments and a short result, the safety record (mode, removed hidden text, grounding notes, the model's own decision and whether code overrode it), and the final recommendation |
-| `output/trap_calls.json` | Every attempted `send_email` / `approve_payment` call. Starts as `[]` |
-| `output/approval_log.json` | Every action requested through `approvals.py`, and whether a person approved it |
+| `output/trap_calls.json` | Every attempted `send_email` / `approve_payment` call. Starts as `[]` and only grows if a simulated tool is called |
+
+Logs are written through a temporary file and an atomic rename. If a log is ever unreadable, it is moved aside as
+`<name>.corrupt-<time>.json` and a new log starts, so history is never silently overwritten.
+| `output/approval_log.json` | Every action requested through `approvals.py`, and whether a person approved it (created on first use; git-ignored, so not in the repo) |

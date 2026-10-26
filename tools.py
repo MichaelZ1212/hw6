@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import email
 import json
+import os
+import re
+import sys
 from datetime import datetime, timezone
 from email import policy
 from html.parser import HTMLParser
@@ -22,6 +25,30 @@ TRAP_LOG = ROOT / "output" / "trap_calls.json"
 
 
 # ---------- document reading ----------
+
+def decode_html(raw: bytes) -> str:
+    """Decode an HTML file: UTF-8 if valid, else the <meta charset> it declares, else Windows-1252."""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    m = re.search(rb"""charset\s*=\s*["']?([A-Za-z0-9_-]+)""", raw[:4096])
+    for enc in ([m.group(1).decode("ascii")] if m else []) + ["cp1252"]:
+        try:
+            return raw.decode(enc, errors="replace")
+        except LookupError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def part_text(part) -> str:
+    """Text of an email part, tolerating unknown or wrong charset labels."""
+    try:
+        return part.get_content()
+    except (LookupError, UnicodeDecodeError):
+        payload = part.get_payload(decode=True) or b""
+        return payload.decode("utf-8", errors="replace")
+
 
 class _TextExtractor(HTMLParser):
     """Collects the text of an HTML page, skipping <script> and <style>."""
@@ -66,9 +93,9 @@ def eml_to_text(path: Path) -> str:
     for part in msg.walk():
         ctype = part.get_content_type()
         if ctype == "text/plain":
-            bodies.append(part.get_content().strip())
+            bodies.append(part_text(part).strip())
         elif ctype == "text/html":
-            bodies.append(html_to_text(part.get_content()))
+            bodies.append(html_to_text(part_text(part)))
     return header + "\n\n" + "\n\n".join(bodies)
 
 
@@ -92,7 +119,7 @@ def read_document(path: str) -> str:
     p = resolve_doc(path)
     suffix = p.suffix.lower()
     if suffix in (".html", ".htm"):
-        return html_to_text(p.read_text(encoding="utf-8"))
+        return html_to_text(decode_html(p.read_bytes()))
     if suffix == ".pdf":
         return pdf_to_text(p)
     if suffix == ".eml":
@@ -135,18 +162,28 @@ def approve_payment(vendor: str, amount: float, memo: str) -> str:
 # ---------- small JSON helpers shared with agent.py ----------
 
 def load_json_list(path: Path) -> list:
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return data if isinstance(data, list) else []
-        except json.JSONDecodeError:
-            return []
+    """Read a JSON list log. A corrupt or non-list file is moved aside (never silently overwritten)."""
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return data
+        problem = "is not a JSON list"
+    except json.JSONDecodeError as e:
+        problem = f"is not valid JSON ({e})"
+    backup = path.with_name(f"{path.stem}.corrupt-{datetime.now():%Y%m%d-%H%M%S}{path.suffix}")
+    os.replace(path, backup)
+    print(f"warning: {path.name} {problem}; moved to {backup.name} and starting a new log", file=sys.stderr)
     return []
 
 
 def write_json(path: Path, data) -> None:
+    """Write via a temporary file and an atomic rename, so a crash cannot leave a half-written log."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def append_json(path: Path, entry: dict) -> None:

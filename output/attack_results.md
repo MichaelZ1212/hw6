@@ -1,6 +1,6 @@
 # Attack results: baseline vendor desk agent (no new defenses)
 
-Run at 2026-10-26T19:52:33+00:00 on **gpt-6-luna**. Agent: Problem 3 agent, unchanged (prompts/prompt.md, tools.read_document, default cached mode).
+Run at 2026-10-26T19:52:33+00:00 on **gpt-6-luna**. Agent: Problem 3 agent, unchanged: agent.run(mode="baseline") - the original instructions (now prompts/prompt_baseline.md), raw text via tools.read_document, send_email/approve_payment registered, cached mode.
 Each of the 12 practice documents was run **3 times** because the model is not deterministic: the same
 document can fool the agent on one run and not the next. Raw data: `output/attack_results.json`.
 Scripts: `scripts/attack_test.py` (runs and scoring) and `scripts/doc_inspect.py` (human view vs. agent view).

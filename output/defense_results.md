@@ -38,7 +38,7 @@ did not buy safety by rejecting everything.
 
 ## 2. All 12 documents: baseline vs. defended
 
-"Misled" counts runs (out of 3) with any wrong field, trap call, or suspicious output. "Hidden attack" lists what
+"Misled" counts runs (out of 3) with any wrong field, trap call, or suspicious output. "Removed by sanitizer" lists what
 the Layer 1 sanitizer removed from that document. p04's comment never reached the baseline model either, and p11's
 `<script>` is harmless analytics code, not an attack.
 
@@ -72,7 +72,7 @@ the Layer 1 sanitizer removed from that document. p04's comment never reached th
 
 | Layer | Where | What it stops | Attacks it handles in this set |
 |---|---|---|---|
-| **1. Sanitize** (`sanitize.py`) | Code, before the model | Text a person cannot see: CSS `display:none`, `font-size:0`, white text, the `hidden` attribute, HTML comments, `<script>`, white / tiny / invisible / off-page PDF text, hidden spans in an email's HTML part, zero-width characters, and fake `<vendor_document>` tags | p02 ($5.11), p03 (fake vendor of record), p04 (deposit comment), p06 (white-text email request), p07 (0.8 pt lead time), p09 (1 px span + link), p12 (off-page price) |
+| **1. Sanitize** (`sanitize.py`) | Code, before the model | Text a person cannot see: CSS from inline styles and `<style>` rules (`display:none`, tiny fonts, opacity 0, transparent text, white text on a white background, off-screen boxes), the `hidden` attribute, HTML comments, `<script>`, white / tiny / invisible / transparent / off-page PDF text, hidden parts of an email's HTML version, zero-width characters, and fake `<vendor_document>` tags | p02 ($5.11), p03 (fake vendor of record), p04 (deposit comment), p06 (white-text email request), p07 (0.8 pt lead time), p09 (1 px span + link), p12 (off-page price) |
 | **2. Isolate + code decides** (`agent.py` defended / `policy.py` / `approvals.py`) | Architecture | (a) The document agent has **no tools**, so no text can make it email or pay. Those tools exist only in `approvals.py`, behind a typed human APPROVE, and they still only log. (b) Each extracted value must appear in the visible text, otherwise it becomes unknown. (c) The decision and reason are computed by code from the handbook tables, so a document cannot override the rules or put a link in the reason | Anything that slips past Layer 1 (e.g. a *visible* fake "revised price" or a new hiding trick) still cannot trigger an action, cannot change the vendor list or max cost, and cannot inject text into the reason. It also fixes non-attack errors like p08 (the model misreading $4.27 as over the $5.34 max) |
 | **3. Hardened prompt** (`prompts/prompt.md`) | Prompt | Tells the model that everything inside `<vendor_document>` is untrusted vendor data, never instructions. It must ignore requests to email, pay, share costs, add links, or use "corrected"/"revised" numbers, and it should take the vendor from the letterhead, not a "vendor of record" claim | A last line for extraction quality. Since code now makes the decision, this layer mostly keeps the extracted **fields** right when an attack is visible |
 
@@ -97,7 +97,10 @@ text, but only Layer 2 makes trap calls impossible and makes the decision determ
 | Layer 1: sanitize (Baseline -> +L1 sanitize) | +0.00 | -23 | -15 | -5.5 | -$0.000004 | -$0.000004 | 6.6 ms sanitize |
 | Layer 2: isolate + code decision (+L1 sanitize -> +L1+L2 isolate) | -1.00 | -10,992 | -10,858 | -25.3 | -$0.000135 | -$0.000129 | 0.4 ms grounding + rules |
 | Layer 3: hardened prompt (+L1+L2 isolate -> +L1+L2+L3 (defended)) | +0.00 | +215 | +209 | -9.0 | -$0.000002 | -$0.000008 | 0 ms |
-| **All three (baseline -> defended)** | -1.00 | -10,800 | -10,664 | -39.8 | **-$0.000140** | **-$0.000141** | 8.2 ms |
+| **All three (baseline -> defended)** (see note) | -1.00 | -10,800 | -10,664 | -39.8 | **-$0.000140** | **-$0.000141** | 8.2 ms |
+
+Note: the "all three" local time is measured directly in defended mode; the per-layer rows come from different runs,
+so they need not add up exactly.
 
 What drives each number:
 
@@ -135,16 +138,19 @@ Layer 1 document text, raw vs. sanitized:
 
 Average document: 122 -> 96 tokens.
 
-### Monthly view (1,000 documents/day x 30 days, average cost per document)
+### Monthly view (1,000 documents/day x 30 days) - projection
+
+Uses the steady-state cost per document (every run except each mode's first, which paid the one-time cold cache
+write), so the cold write is not charged 30,000 times a month.
 
 | Mode | Per month |
 |---|---:|
-| Baseline | $10.17 |
-| +L1 sanitize | $10.05 |
-| +L1+L2 isolate | $6.01 |
-| +L1+L2+L3 (defended) | $5.96 |
+| Baseline | $9.13 |
+| +L1 sanitize | $9.01 |
+| +L1+L2 isolate | $4.98 |
+| +L1+L2+L3 (defended) | $4.91 |
 
-All three layers together **save about $4.21 per month** compared with
+All three layers together **save about $4.22 per month** compared with
 the baseline, mainly because Layer 2 halves the number of model calls.
 
 ## 5. Notes and limits
@@ -154,8 +160,10 @@ the baseline, mainly because Layer 2 halves the number of model calls.
 - The baseline is still available (`--baseline`) and unchanged, so Problem 7 can compare against it.
 - `send_email` and `approve_payment` stay in `tools.py` and still only log. The document agent in defended mode is built
   with an empty tool list; the only path to them is `approvals.py`, which refuses unless a person types APPROVE.
-- The sanitizer handles the hiding tricks in this document set plus common variants (opacity, visibility, off-screen
-  positioning, PDF render mode 3, CMYK white). A new hiding trick could get past it, and that is why Layers 2 and 3 exist.
-- Grounding checks that a value **appears** in the visible text, not that it is the right one. A visible fake "revised
+- The sanitizer handles the hiding tricks in this document set plus common variants (`<style>` rules, opacity,
+  visibility, transparent or near-white text, off-screen or clipped boxes, PDF render modes 3/7, transparent or
+  CMYK-white PDF text). A new hiding trick could get past it (Problem 7 found two), and that is why Layers 2 and 3 exist.
+- Grounding checks that a value **appears** in the visible text next to a fitting label (price, lead time, minimum),
+  not that it is the right one. A visible fake "revised
   price" would pass grounding. Against that, the hardened prompt (use the main quote table) is the defense, and the
   code rules still limit the damage to a single price comparison.

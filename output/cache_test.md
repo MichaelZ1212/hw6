@@ -5,8 +5,9 @@ Run at 2026-10-26T19:41:15+00:00 on **gpt-6-luna** through Portkey. Raw data: `o
 
 ## Setup
 
-Both setups use the same model, the same `prompts/prompt.md` + full handbook as instructions,
-the same tools, and the same 12 practice documents. Only one setting differs:
+Both setups use the Problem 3 agent (`agent.run(..., mode="baseline")`: the original instructions, now kept in
+`prompts/prompt_baseline.md`, plus the full handbook), the same tools, and the same 12 practice documents.
+Only one setting differs:
 
 | Setup | How | What the API should report |
 |---|---|---|
@@ -116,14 +117,19 @@ order of magnitude.
 
 ## 3. Monthly projection (1,000 documents/day x 30 days = 30,000 documents)
 
+The projection uses the **steady-state** cost per document: the average of every run except the first one in each
+setup, which paid this test's one-time cold cache write. (Averaging that cold write into every document would
+charge it 30,000 times a month.)
+
 | Setup | Calculation | Per month |
 |---|---|---:|
-| cached | 30,000 x $0.000418 | **$12.54** |
-| no_cache | 30,000 x $0.002780 | **$83.39** |
-| Savings | | **$70.85 / month (85.0%)** |
+| cached | 30,000 x $0.000316 | **$9.48** |
+| no_cache | 30,000 x $0.002780 | **$83.40** |
+| Savings | | **$73.92 / month (88.6%)** |
 
-This assumes the per-document averages above hold. At 1,000 documents a day the cache stays warm all
-day, so nearly every call is a cache hit. The one-time cache write per key is negligible at that volume.
+At 1,000 documents a day the cache stays warm all day, so nearly every call is a cache hit, and the cold write is paid
+roughly once per cache lifetime, not once per document. Including the cold write in the average (as in section 1) gives
+$12.54 cached vs $83.39 no-cache per month.
 
 ## 4. Unexpected findings
 

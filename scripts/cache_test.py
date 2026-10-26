@@ -47,7 +47,8 @@ def check_calls(mode: str, calls: list[dict], first_in_setup: bool) -> list[str]
 
 def run_setup(mode: str, docs: list[Path]) -> list[dict]:
     rows = []
-    for n, doc in enumerate(docs):
+    first_done = False  # the first *successful* run is the one expected to write the cache
+    for doc in docs:
         rel = doc.relative_to(ROOT).as_posix()
         print(f"[{mode}] {doc.name} ...", flush=True)
         try:
@@ -57,8 +58,9 @@ def run_setup(mode: str, docs: list[Path]) -> list[dict]:
                          "error": f"{type(e).__name__}: {e}", "trace": traceback.format_exc()[-800:]})
             print(f"   FAILED: {e}")
             continue
-        expected = next(k for k in KEY if k["file"] == doc.name)
-        flags = check_calls(mode, rec["model_calls"], first_in_setup=(n == 0))
+        expected = next((k for k in KEY if k["file"] == doc.name), {"decision": None})
+        flags = check_calls(mode, rec["model_calls"], first_in_setup=not first_done)
+        first_done = True
         rows.append({
             "doc": doc.name,
             "cache_mode": mode,
@@ -80,7 +82,7 @@ def run_setup(mode: str, docs: list[Path]) -> list[dict]:
 
 
 def run_test() -> dict:
-    docs = sorted(DOCS_DIR.iterdir())
+    docs = [p for p in sorted(DOCS_DIR.iterdir()) if p.is_file() and p.suffix.lower() in (".html", ".htm", ".pdf", ".eml")]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     agent.CACHE_KEY = f"campus-customs-cache-test-{stamp}"  # new key per test run, so the cached setup starts cold
     data = {
@@ -103,7 +105,9 @@ def usd(x: float, digits: int = 6) -> str:
 
 
 def summarize(rows: list[dict]) -> dict:
-    ok = [r for r in rows if r["status"] == "ok"]
+    # Flagged runs (a cache miss where a hit was expected) are real, paid calls, so they stay in the totals;
+    # only failed runs, which returned nothing, are left out.
+    ok = [r for r in rows if r["status"] != "failed"]
     calls = [c for r in ok for c in r["model_calls"]]
     s = {k: sum(c[k] for c in calls) for k in
          ("input_tokens", "cached_tokens", "cache_write_tokens", "uncached_input_tokens", "output_tokens")}
@@ -118,6 +122,9 @@ def summarize(rows: list[dict]) -> dict:
         "correct": sum(r["decision_matches_key"] for r in ok),
     })
     s["per_doc"] = s["cost"] / s["docs_ok"] if s["docs_ok"] else 0.0
+    # Steady state: leave out the first run, which pays the one-time cold cache write for this test's key.
+    rest = [r["cost"]["total_usd"] for r in ok[1:]]
+    s["steady_per_doc"] = sum(rest) / len(rest) if rest else s["per_doc"]
     return s
 
 
@@ -127,7 +134,9 @@ def build_report(data: dict) -> str:
     n = summarize([r for r in runs if r["cache_mode"] == "no_cache"])
     p = data["prices_per_1m"]
     saved = n["cost"] - c["cost"]
-    pct = saved / n["cost"] if n["cost"] else 0.0
+    # Compare per-document averages, so the percentage stays fair if one setup lost a run.
+    pct = (n["per_doc"] - c["per_doc"]) / n["per_doc"] if n["per_doc"] else 0.0
+    pct_steady = (n["steady_per_doc"] - c["steady_per_doc"]) / n["steady_per_doc"] if n["steady_per_doc"] else 0.0
     bad = [r for r in runs if r["status"] != "ok"]
 
     # Problem 2 estimate: handbook only, one call per document.
@@ -176,8 +185,9 @@ Run at {data['time']} on **{data['model']}** through Portkey. Raw data: `output/
 
 ## Setup
 
-Both setups use the same model, the same `prompts/prompt.md` + full handbook as instructions,
-the same tools, and the same 12 practice documents. Only one setting differs:
+Both setups use the Problem 3 agent (`agent.run(..., mode="baseline")`: the original instructions, now kept in
+`prompts/prompt_baseline.md`, plus the full handbook), the same tools, and the same {c['docs_ok']} practice documents.
+Only one setting differs:
 
 | Setup | How | What the API should report |
 |---|---|---|
@@ -262,14 +272,19 @@ order of magnitude.
 
 ## 3. Monthly projection (1,000 documents/day x 30 days = {DOCS_PER_MONTH:,} documents)
 
+The projection uses the **steady-state** cost per document: the average of every run except the first one in each
+setup, which paid this test's one-time cold cache write. (Averaging that cold write into every document would
+charge it 30,000 times a month.)
+
 | Setup | Calculation | Per month |
 |---|---|---:|
-| cached | {DOCS_PER_MONTH:,} x {usd(c['per_doc'])} | **{usd(DOCS_PER_MONTH * c['per_doc'], 2)}** |
-| no_cache | {DOCS_PER_MONTH:,} x {usd(n['per_doc'])} | **{usd(DOCS_PER_MONTH * n['per_doc'], 2)}** |
-| Savings | | **{usd(DOCS_PER_MONTH * (n['per_doc'] - c['per_doc']), 2)} / month ({pct:.1%})** |
+| cached | {DOCS_PER_MONTH:,} x {usd(c['steady_per_doc'])} | **{usd(DOCS_PER_MONTH * c['steady_per_doc'], 2)}** |
+| no_cache | {DOCS_PER_MONTH:,} x {usd(n['steady_per_doc'])} | **{usd(DOCS_PER_MONTH * n['steady_per_doc'], 2)}** |
+| Savings | | **{usd(DOCS_PER_MONTH * (n['steady_per_doc'] - c['steady_per_doc']), 2)} / month ({pct_steady:.1%})** |
 
-This assumes the per-document averages above hold. At 1,000 documents a day the cache stays warm all
-day, so nearly every call is a cache hit. The one-time cache write per key is negligible at that volume.
+At 1,000 documents a day the cache stays warm all day, so nearly every call is a cache hit, and the cold write is paid
+roughly once per cache lifetime, not once per document. Including the cold write in the average (as in section 1) gives
+{usd(DOCS_PER_MONTH * c['per_doc'], 2)} cached vs {usd(DOCS_PER_MONTH * n['per_doc'], 2)} no-cache per month.
 
 ## 4. Unexpected findings
 

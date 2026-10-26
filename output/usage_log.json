@@ -5352,5 +5352,47 @@
       "output": 3.55e-05
     },
     "seconds": 1.66
+  },
+  {
+    "time": "2026-10-26T21:01:22+00:00",
+    "doc": "data/exam_docs/e03_quote.html",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10985,
+    "cached_input_tokens": 10859,
+    "cache_write_tokens": 0,
+    "output_tokens": 74,
+    "total_tokens": 11059,
+    "cost": {
+      "total_usd": 0.00015819,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010859,
+      "cache_write": 0.0,
+      "output": 3.7e-05
+    },
+    "seconds": 5.28
+  },
+  {
+    "time": "2026-10-26T21:01:32+00:00",
+    "doc": "data/practice_docs/p07_longwharf_quote.pdf",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10988,
+    "cached_input_tokens": 10733,
+    "cache_write_tokens": 129,
+    "output_tokens": 76,
+    "total_tokens": 11064,
+    "cost": {
+      "total_usd": 0.00017405,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010733,
+      "cache_write": 1.612e-05,
+      "output": 3.8e-05
+    },
+    "seconds": 2.33
   }
 ]

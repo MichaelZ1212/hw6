@@ -13,6 +13,8 @@ python-dotenv>=1.0
 # Token counting for the handbook estimate (Problem 2) and the defense report (Problem 6)
 tiktoken>=0.8
 
-# Building and checking the Problem 7 red-team documents (scripts/build_red_team_docs.py)
+# Problem 7 red-team documents: building them (scripts/build_red_team_docs.py, also used by scripts/self_test.py)
+# and rendering them to PNG (scripts/render_red_team.py)
 reportlab>=4.0
 pypdfium2>=4.0
+pillow>=10.0

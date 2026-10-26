@@ -98,7 +98,8 @@ python agent.py --doc data/practice_docs/p01_bluehen_quote.html --no-cache  # no
 | `--no-cache` | Fresh prompt-cache key on every call, so the API reports 0 cached tokens |
 
 Every run appends to `output/usage_log.json` (tokens, cost, time), `output/audit_trail.json` (tool calls,
-removed hidden text, the model's own answer and the code decision), and `output/trap_calls.json`.
+removed hidden text, the model's own answer and the code decision). `output/trap_calls.json` is created as `[]`
+and only grows if a simulated tool is actually called.
 
 ## 4. How it works
 
@@ -109,8 +110,8 @@ removed hidden text, the model's own answer and the code decision), and `output/
 | `tools.py` | Raw document reader (HTML / PDF / email) and the two **simulated** tools `send_email` / `approve_payment` |
 | `prompts/prompt.md` | Hardened agent instructions (the full handbook is appended on every request) |
 | `prompts/prompt_baseline.md` | Original instructions used by `--baseline` |
-| `sanitize.py` | **Layer 1:** keeps only text a person would see (removes hidden CSS, comments, white/tiny/off-page PDF text, hidden email parts, zero-width characters) |
-| `policy.py` | **Layer 2:** checks each extracted value against the visible text, then applies the four handbook rules in code (approved vendor, price <= max unit cost, lead time <= 21 days, minimum order <= 600) |
+| `sanitize.py` | **Layer 1:** keeps only text a person would see. Removes text hidden by inline styles **and `<style>` rules** (display:none, tiny fonts, opacity 0, transparent text, white text on a white background, off-screen or clipped boxes), HTML comments and scripts, white / tiny / invisible / transparent / off-page PDF text, hidden parts of an email's HTML version, and zero-width characters. White text on a dark banner is kept |
+| `policy.py` | **Layer 2:** checks each extracted value against the visible text (next to a fitting label), then applies the four handbook rules in code (approved vendor, price <= max unit cost, lead time <= 21 days, minimum order <= 600). The reason uses only handbook names, the SKU and numbers |
 | `approvals.py` | **Layer 2:** the only way to run `send_email` / `approve_payment`. A person must type `APPROVE`, and it still only logs |
 
 In defended mode the document agent has **no tools**. Code reads and cleans the document, hands it to the model
@@ -124,11 +125,12 @@ All scripts run from the project root and call the API, except where marked offl
 |---|---|---|
 | 1 Prompt log | (written during the work) | `AI_prompts.md` |
 | 2 Handbook size and cost estimate (offline) | `python scripts/handbook_estimate.py` | `output/handbook_estimate.md` |
-| 3 Agent | `python agent.py --doc data/practice_docs/p01_bluehen_quote.html` | `output/usage_log.json`, `output/audit_trail.json`, `output/trap_calls.json`, `output/harness.md` |
+| 3 Agent | `python agent.py --doc data/practice_docs/p01_bluehen_quote.html` | `output/usage_log.json`, `output/audit_trail.json`, `output/trap_calls.json` (`output/harness.md` is a hand-written description) |
 | 4 With vs. without caching (24 runs) | `python scripts/cache_test.py` | `output/cache_test.json`, `output/cache_test.md` |
 | 5 Attack the baseline (36 runs) | `python scripts/attack_test.py` | `output/attack_results.json`, `output/attack_results.md` |
 | 6 Defenses, layer by layer (144 runs) | `python scripts/defense_test.py` | `output/defense_results.json`, `output/defense_results.md` |
-| 7 Red team: build docs (offline), then test (12 runs) | `python scripts/build_red_team_docs.py` then `python scripts/red_team_test.py` | `data/my_attacks/`, `output/red_team.json`, `output/red_team.md` |
+| 7 Red team: build docs (offline), render them (offline), test (12 runs) | `python scripts/build_red_team_docs.py`, `python scripts/render_red_team.py`, `python scripts/red_team_test.py` | `data/my_attacks/`, `output/red_team_a1_render.png`, `output/red_team_a2_render.png` (needs Chrome or Edge), `output/red_team.json`, `output/red_team.md` |
+| 7 Red team, round 1 (the archived first attempt) | `python scripts/build_red_team_docs.py --round 1` then `python scripts/red_team_test.py --round 1` | `data/my_attacks/round1/`, `output/red_team_round1.json` |
 | 8 Exam documents (10 runs) | `python scripts/run_exam.py` | `output/exam_results.json` |
 | 9 Dashboard (offline) | `python scripts/build_report.py` | `output/hw6_report.html` |
 
@@ -148,7 +150,7 @@ hw6/
 ├── sanitize.py, policy.py, approvals.py   safety layers
 ├── prompts/prompt.md, prompt_baseline.md  agent instructions
 ├── AI_prompts.md                          prompts used for every problem
-├── requirements.txt, .env.example, .gitignore, README.md
+├── requirements.txt, .env.example, .gitignore, .gitattributes, README.md
 ├── data/
 │   ├── shop_handbook.md, prices.json, practice_key.json
 │   ├── practice_docs/   12 practice documents (HTML, PDF, email)
@@ -163,10 +165,10 @@ hw6/
 
 | | Result |
 |---|---|
-| Prompt caching (Problem 4) | **85% cheaper**: $0.000418 vs $0.002780 per document |
-| Misled by hidden instructions (Problems 5-6) | **11/36 runs** before the defenses, **0/36** after |
+| Prompt caching (Problem 4) | **85% cheaper** on average: $0.000418 vs $0.002780 per document (88.6% at steady state, after the first cold-cache call) |
+| Misled by hidden instructions (Problem 6 rerun, 36 runs per mode) | **11/36** with the original agent, **0/36** with the defenses (Problem 5's own baseline run: 10/36) |
 | Legitimate quotes still approved, defended | **12/12** |
 | Cost per document, defended vs. original | **$0.000199 vs $0.000339** (the defenses removed one AI call per document) |
 | Red team (Problem 7) | Covered-text "amended terms" PDF fooled the original agent 3/3 and the defended agent 0/3. The fake-system payment email failed against both |
 | Exam (Problem 8) | 10/10 processed, 0 simulated tool calls, all decisions consistent with the handbook rules |
-| Projected cost at 1,000 documents/day | about **$5.96 per month** (projection from the measured average) |
+| Projected cost at 1,000 documents/day | about **$4.91 per month** (projection: steady-state cost of the defended agent, $0.000164/doc, from Problem 6; the exam run measured $0.000161/doc) |

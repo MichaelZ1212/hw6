@@ -274,7 +274,8 @@ _None._
 defended agent instead of the original one if rerun, that the sanitizer could hide a whole page after an unclosed tag
 inside a hidden element and removed legitimate white-on-dark text, that vendor names with suffixes like "Inc." were
 rejected, and that a bad document path crashed with a traceback. All were fixed and covered by `scripts/self_test.py`;
-the sanitized text of all 26 documents is unchanged, so the recorded results still hold.
+the sanitized text of all 26 documents was unchanged after this first pass, so the recorded results still held
+(the second pass below then changed e03; Problem 5-7 documents stayed unchanged).
 
 > 还有其他bug吗
 
@@ -284,3 +285,16 @@ agent still had no tools and decided correctly). PDF handling joined the last li
 next, could drop rotated text as "tiny", removed white text on dark boxes, ignored the crop box and `sc`/`scn` colours.
 Grounding rejected lead times quoted in weeks, and the dashboard builder crashed when a result file was missing. All were
 fixed with new checks in `scripts/self_test.py`; the exam was rerun on the fixed code (same 10 results) and the dashboard rebuilt.
+
+> 最后再1-10查一遍bug，修复
+
+**What was missing:** a full independent review of Problems 1-10 (three parallel reviewers: core code, experiment
+scripts, written deliverables). Fixed: PDF line breaks between text blocks were dropped; multi-line `<style>` rules
+and styles with tabs were ignored; lookalike vendors such as "Blue Hen Apparel Liquidators LLC" passed as approved and
+vendor text could reach the reason; an email's plain-text body was dropped when an HTML signature existed; more hiding
+methods (transparent/near-white colours, `<font color>`, `font:0/0`, PDF render mode 7, transparent or white-stroke PDF
+text) and false removals (`bgcolor` cells, unclosed `<p>`) were handled; non-UTF-8 files crashed; a corrupt log could
+wipe its history; "4 weeks" could ground as 20 days and "Net 15" as a lead time. Scripts now keep trap calls from failed
+runs, skip stray files, project monthly cost from the steady-state cost (not the one-time cold cache write), describe the
+prompt files correctly, and can reproduce the round 1 red team and the render PNGs. All 26 documents' sanitized text
+is unchanged, all practice and exam results re-check identically, and `scripts/self_test.py` now has 83 checks.
