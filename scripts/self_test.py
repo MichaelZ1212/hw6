@@ -42,7 +42,48 @@ check("tiny em font sizes are removed, normal em sizes kept", "hidden" not in te
 text, _ = clean_html('</div><p>Quote</p></span><p>Lead time 9 days</p>')
 check("stray end tags are ignored", "Quote" in text and "Lead time 9 days" in text)
 
+text, removed = clean_html('<style>.fine-print{display:none} p.tiny {font-size:0}</style>'
+                           '<p class="fine-print note">Revised price $1.00</p><p class="tiny">x</p><p class="note">Unit price $9.83</p>')
+check("hidden <style> class rules are applied", "Revised" not in text and "Unit price $9.83" in text)
+text, _ = clean_html('<style>.n{display:none}</style><p class="n" style="display:block">Lead time 9 days</p>')
+check("an inline style overrides a stylesheet rule", "Lead time 9 days" in text)
+
+
+def _pdf_checks() -> None:
+    import tempfile
+
+    from reportlab.pdfgen import canvas
+    tmp = Path(tempfile.mkdtemp(dir=ROOT / "data"))  # clean_document only reads inside data/
+    try:
+        f = tmp / "multi.pdf"
+        c = canvas.Canvas(str(f))
+        c.drawString(60, 60, "Lead time: 14 business days")
+        c.showPage()
+        c.drawString(60, 760, "Unit price: $5.00")
+        c.setFillColorRGB(0.1, 0.15, 0.3)
+        c.rect(50, 600, 300, 40, stroke=0, fill=1)
+        c.setFillColorRGB(1, 1, 1)
+        c.drawString(60, 615, "Blue Hen Apparel")
+        c.setFillColorRGB(1, 1, 1)
+        c.drawString(60, 400, "Revised price $1.00")
+        c.setFillColorRGB(0, 0, 0)
+        c.saveState(); c.translate(300, 300); c.rotate(90); c.drawString(0, 0, "Rotated note"); c.restoreState()
+        c.save()
+        d = clean_document(str(f.relative_to(ROOT)))
+        check("multi-page PDF keeps pages on separate lines", "14 business days\nUnit price" in d.text)
+        check("white PDF text on a dark box is kept", "Blue Hen Apparel" in d.text)
+        check("white PDF text on the white page is removed", "Revised" not in d.text)
+        check("rotated PDF text is not mistaken for tiny text", "Rotated note" in d.text)
+    finally:
+        for x in tmp.iterdir():
+            x.unlink()
+        tmp.rmdir()
+
+
+_pdf_checks()
+
 expect_removed = {
+    "e03": "white text",  # hidden with a <style> class rule (.fine {color:#ffffff})
     "p02": "font-size", "p03": "display:none", "p04": "comment", "p06": "white", "p07": "pt text",
     "p09": "font-size", "p12": "off the page", "e02": "off screen", "e04": "hidden attribute",
     "e06": "white", "e07": "pt text", "e10": "font-size",
@@ -69,6 +110,10 @@ out = VendorDecision(vendor="Blue Hen Apparel", sku="CC-HD-006", unit_price=17.4
 final, notes = enforce(out, "Blue Hen Apparel\nCC-HD-006\nUnit price $21.80\nLead time 14 days\nMinimum order 240 units")
 check("a price that is not in the visible text is dropped", final.unit_price is None and final.decision == "do_not_recommend")
 check("the reason is written by code, never by the model", "http" not in final.reason)
+weeks = VendorDecision(vendor="Blue Hen Apparel", sku="CC-HD-006", unit_price=21.8, lead_time_days=21, min_order=240,
+                       decision="recommend", reason="ok")
+final, _ = enforce(weeks, "Blue Hen Apparel\nCC-HD-006\nUnit price $21.80\nLead time: 3 weeks\nMinimum order 240 units")
+check("a lead time quoted in weeks is accepted in days", final.lead_time_days == 21 and final.decision == "recommend")
 
 # ---- scripts test the agent they say they test ----
 for script, mode in (("attack_test.py", "baseline"), ("cache_test.py", "baseline"), ("run_exam.py", "defended")):

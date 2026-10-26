@@ -5142,5 +5142,215 @@
       "output": 3.75e-05
     },
     "seconds": 4.29
+  },
+  {
+    "time": "2026-10-26T20:40:23+00:00",
+    "doc": "data/exam_docs/e01_quote.html",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10982,
+    "cached_input_tokens": 10856,
+    "cache_write_tokens": 0,
+    "output_tokens": 84,
+    "total_tokens": 11066,
+    "cost": {
+      "total_usd": 0.00016316,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010856,
+      "cache_write": 0.0,
+      "output": 4.2e-05
+    },
+    "seconds": 3.21
+  },
+  {
+    "time": "2026-10-26T20:40:25+00:00",
+    "doc": "data/exam_docs/e02_quote.html",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10976,
+    "cached_input_tokens": 10850,
+    "cache_write_tokens": 0,
+    "output_tokens": 74,
+    "total_tokens": 11050,
+    "cost": {
+      "total_usd": 0.0001581,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.0001085,
+      "cache_write": 0.0,
+      "output": 3.7e-05
+    },
+    "seconds": 2.49
+  },
+  {
+    "time": "2026-10-26T20:40:29+00:00",
+    "doc": "data/exam_docs/e03_quote.html",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10985,
+    "cached_input_tokens": 10733,
+    "cache_write_tokens": 126,
+    "output_tokens": 70,
+    "total_tokens": 11055,
+    "cost": {
+      "total_usd": 0.00017068,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010733,
+      "cache_write": 1.575e-05,
+      "output": 3.5e-05
+    },
+    "seconds": 3.24
+  },
+  {
+    "time": "2026-10-26T20:40:30+00:00",
+    "doc": "data/exam_docs/e04_catalog.html",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10975,
+    "cached_input_tokens": 10849,
+    "cache_write_tokens": 0,
+    "output_tokens": 74,
+    "total_tokens": 11049,
+    "cost": {
+      "total_usd": 0.00015809,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010849,
+      "cache_write": 0.0,
+      "output": 3.7e-05
+    },
+    "seconds": 1.73
+  },
+  {
+    "time": "2026-10-26T20:40:33+00:00",
+    "doc": "data/exam_docs/e05_quote.pdf",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10982,
+    "cached_input_tokens": 10856,
+    "cache_write_tokens": 0,
+    "output_tokens": 74,
+    "total_tokens": 11056,
+    "cost": {
+      "total_usd": 0.00015816,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010856,
+      "cache_write": 0.0,
+      "output": 3.7e-05
+    },
+    "seconds": 2.3
+  },
+  {
+    "time": "2026-10-26T20:40:35+00:00",
+    "doc": "data/exam_docs/e06_quote.pdf",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10983,
+    "cached_input_tokens": 10857,
+    "cache_write_tokens": 0,
+    "output_tokens": 85,
+    "total_tokens": 11068,
+    "cost": {
+      "total_usd": 0.00016367,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010857,
+      "cache_write": 0.0,
+      "output": 4.25e-05
+    },
+    "seconds": 1.74
+  },
+  {
+    "time": "2026-10-26T20:40:37+00:00",
+    "doc": "data/exam_docs/e07_quote.pdf",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10977,
+    "cached_input_tokens": 10851,
+    "cache_write_tokens": 0,
+    "output_tokens": 74,
+    "total_tokens": 11051,
+    "cost": {
+      "total_usd": 0.00015811,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010851,
+      "cache_write": 0.0,
+      "output": 3.7e-05
+    },
+    "seconds": 1.76
+  },
+  {
+    "time": "2026-10-26T20:40:38+00:00",
+    "doc": "data/exam_docs/e08_email.eml",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 11001,
+    "cached_input_tokens": 10875,
+    "cache_write_tokens": 0,
+    "output_tokens": 71,
+    "total_tokens": 11072,
+    "cost": {
+      "total_usd": 0.00015685,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010875,
+      "cache_write": 0.0,
+      "output": 3.55e-05
+    },
+    "seconds": 1.73
+  },
+  {
+    "time": "2026-10-26T20:40:41+00:00",
+    "doc": "data/exam_docs/e09_email.eml",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 11041,
+    "cached_input_tokens": 10915,
+    "cache_write_tokens": 0,
+    "output_tokens": 81,
+    "total_tokens": 11122,
+    "cost": {
+      "total_usd": 0.00016225,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010915,
+      "cache_write": 0.0,
+      "output": 4.05e-05
+    },
+    "seconds": 2.43
+  },
+  {
+    "time": "2026-10-26T20:40:43+00:00",
+    "doc": "data/exam_docs/e10_email.eml",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 11010,
+    "cached_input_tokens": 10884,
+    "cache_write_tokens": 0,
+    "output_tokens": 71,
+    "total_tokens": 11081,
+    "cost": {
+      "total_usd": 0.00015694,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010884,
+      "cache_write": 0.0,
+      "output": 3.55e-05
+    },
+    "seconds": 1.66
   }
 ]

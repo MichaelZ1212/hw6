@@ -179,6 +179,8 @@ def build_data() -> dict:
 def self_check(d: dict) -> list[str]:
     """Cross-check the embedded numbers against independent recomputation from the raw files."""
     errs = []
+    if not all(k in d for k in ("p4", "p6", "p8")):
+        return errs  # a source file is missing; build_data already lists it under "What this report does not show"
     ct = json.loads((ROOT / "output" / "cache_test.json").read_text(encoding="utf-8"))
     for mode in ("cached", "no_cache"):
         raw = sum(r["cost"]["total_usd"] for r in ct["runs"] if r["cache_mode"] == mode and r["status"] == "ok")

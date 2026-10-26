@@ -14,6 +14,7 @@ Legitimate visible content (vendor, SKU, prices, lead times, minimums) passes th
 from __future__ import annotations
 
 import email
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -43,22 +44,25 @@ class CleanDoc:
 # ---------- HTML ----------
 
 def hidden_style(style: str) -> str | None:
+    """Hiding technique used by a (combined) style string, or None. For each property the last value wins,
+    as in CSS, so an inline style overrides a stylesheet rule."""
     s = style.replace(" ", "").lower()
-    if "display:none" in s:
+    display, visibility, opacity = _css(s, "display"), _css(s, "visibility"), _css(s, "opacity")
+    if display == "none":
         return "CSS display:none"
-    if "visibility:hidden" in s or "visibility:collapse" in s:
+    if visibility in ("hidden", "collapse"):
         return "CSS visibility:hidden"
-    if re.search(r"(^|;)opacity:0*(\.0+)?(;|$)", s):
+    if opacity is not None and re.fullmatch(r"0*(\.0+)?", opacity):
         return "CSS opacity:0"
-    m = re.search(r"font-size:([\d.]+)(px|pt|em|rem|%)?(!important)?(;|$)", s)
+    size = _css(s, "font-size")
+    m = re.fullmatch(r"([\d.]+)(px|pt|em|rem|%)?", size or "")
     if m:
-        size, unit = float(m.group(1)), m.group(2) or "px"
-        limit = {"px": 2, "pt": 2, "em": 0.2, "rem": 0.2, "%": 20}[unit]
-        if size <= limit:
+        unit = m.group(2) or "px"
+        if float(m.group(1)) <= {"px": 2, "pt": 2, "em": 0.2, "rem": 0.2, "%": 20}[unit]:
             return f"CSS font-size:{m.group(1)}{m.group(2) or ''}"
-    if re.search(r"(^|;)(height|width|max-height):0(px)?(;|$)", s) and "overflow:hidden" in s:
+    if _css(s, "overflow") == "hidden" and any(re.fullmatch(r"0(px)?", _css(s, p) or "x") for p in ("height", "width", "max-height")):
         return "zero-size box"
-    if re.search(r"(left|top|text-indent):-\d{3,}", s):
+    if any(re.fullmatch(r"-\d{3,}(\.\d+)?(px|em|pt)?", _css(s, p) or "") for p in ("left", "top", "text-indent", "margin-left", "margin-top")):
         return "moved off screen"
     return None
 
@@ -66,10 +70,29 @@ def hidden_style(style: str) -> str | None:
 WHITE = re.compile(r"^(#fff(fff)?|white|rgba?\(255,255,255(,1(\.0*)?)?\))$")
 
 
+SIMPLE_SELECTOR = re.compile(r"^([a-z][a-z0-9]*)?((?:[.#][a-z0-9_-]+)*)$")
+
+
+def parse_stylesheet(css: str) -> list[tuple[str | None, set[str], str | None, str]]:
+    """Rules from a <style> block as (tag, classes, id, declarations). Only simple selectors such as
+    p, .note, #x, p.note are used; selectors with combinators are skipped rather than guessed."""
+    rules = []
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S).lower()
+    for selectors, body in re.findall(r"([^{}@]+)\{([^{}]*)\}", css):
+        for sel in selectors.split(","):
+            m = SIMPLE_SELECTOR.match(sel.strip())
+            if not m or not sel.strip():
+                continue
+            parts = re.findall(r"[.#][a-z0-9_-]+", m.group(2) or "")
+            rules.append((m.group(1), {p[1:] for p in parts if p[0] == "."},
+                          next((p[1:] for p in parts if p[0] == "#"), None), body))
+    return rules
+
+
 def _css(style: str, prop: str) -> str | None:
     """Value of one CSS property in an inline style (spaces removed, lower case)."""
-    m = re.search(rf"(?:^|;){prop}:([^;]+)", style.replace(" ", "").lower())
-    return m.group(1).replace("!important", "") if m else None
+    vals = re.findall(rf"(?:^|;){prop}:([^;]+)", style.replace(" ", "").lower())
+    return vals[-1].replace("!important", "") if vals else None  # last declaration wins
 
 
 class _VisibleHTML(HTMLParser):
@@ -83,6 +106,15 @@ class _VisibleHTML(HTMLParser):
         self.out: list[str] = []
         self.removed: list[dict] = []
         self._hidden_buf: list[str] = []
+        self.rules: list[tuple[str | None, set[str], str | None, str]] = []
+
+    def _style_for(self, tag: str, attrs: dict) -> str:
+        """Declarations from matching <style> rules, then the inline style (inline wins)."""
+        classes = set((attrs.get("class") or "").lower().split())
+        el_id = (attrs.get("id") or "").lower() or None
+        decl = [body for t, cls, i, body in self.rules
+                if (t is None or t == tag) and cls <= classes and (i is None or i == el_id) and (t or cls or i)]
+        return ";".join(decl + [attrs.get("style") or ""])
 
     def _hiding(self) -> str | None:
         return next((h for _, h, _ in reversed(self.stack) if h), None)
@@ -96,7 +128,7 @@ class _VisibleHTML(HTMLParser):
         if tag in VOID:
             return
         a = dict(attrs)
-        style = a.get("style") or ""
+        style = self._style_for(tag, a)
         how = hidden_style(style)
         bg = _css(style, "background-color") or _css(style, "background")
         color = _css(style, "color")
@@ -128,6 +160,8 @@ class _VisibleHTML(HTMLParser):
                 self.removed.append({"technique": how, "text": text})
 
     def handle_data(self, data):
+        if self.stack and self.stack[-1][0] == "style":
+            self.rules += parse_stylesheet(data)  # rules apply to elements after the <style> block
         (self._hidden_buf if self._hiding() else self.out).append(data)
 
     def handle_comment(self, data):
@@ -151,10 +185,12 @@ def clean_pdf(path: Path) -> tuple[str, list[dict]]:
     visible: list[str] = []
     removed: list[dict] = []
     for page in PdfReader(path).pages:
-        box = page.mediabox
+        box = page.cropbox  # the visible area (defaults to the media box)
         x0, y0, x1, y1 = float(box.left), float(box.bottom), float(box.right), float(box.top)
         gs = {"fill": (0.0, 0.0, 0.0), "mode": 0}
         stack: list[dict] = []
+        pending: list[tuple[float, float, float, float]] = []  # rectangles in the current path
+        dark: list[tuple[float, float, float, float]] = []     # filled non-white rectangles (backgrounds)
 
         def before(op, args, cm, tm):
             if op == b"q":
@@ -168,18 +204,40 @@ def clean_pdf(path: Path) -> tuple[str, list[dict]]:
             elif op == b"k" and len(args) == 4:
                 c, m, y, k = (float(a) for a in args)
                 gs["fill"] = tuple((1 - min(1.0, v + k)) for v in (c, m, y))
+            elif op in (b"sc", b"scn") and args and all(isinstance(a, (int, float)) for a in args):
+                v = [float(a) for a in args]
+                if len(v) == 1:
+                    gs["fill"] = (v[0],) * 3
+                elif len(v) == 3:
+                    gs["fill"] = tuple(v)
+                elif len(v) == 4:
+                    gs["fill"] = tuple((1 - min(1.0, c + v[3])) for c in v[:3])
             elif op == b"Tr" and args:
                 gs["mode"] = int(args[0])
+            elif op == b"re" and len(args) == 4:
+                rx, ry, rw, rh = (float(a) for a in args)
+                corners = [(px * cm[0] + py * cm[2] + cm[4], px * cm[1] + py * cm[3] + cm[5])
+                           for px in (rx, rx + rw) for py in (ry, ry + rh)]
+                xs, ys = [c[0] for c in corners], [c[1] for c in corners]
+                pending.append((min(xs), min(ys), max(xs), max(ys)))
+            elif op in (b"f", b"F", b"f*", b"B", b"B*", b"b", b"b*"):
+                if not all(c >= 0.95 for c in gs["fill"]):
+                    dark.extend(pending)
+                pending.clear()
+            elif op in (b"n", b"S", b"s"):
+                pending.clear()
 
         def on_text(text, cm, tm, font, size):
             if not text.strip():
                 return
             x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
             y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
-            scale = (abs(tm[3] * cm[3]) or 1.0)
-            eff = float(size) * scale
+            # Effective size = font size x the vertical scale of text matrix and CTM (works for rotated text too).
+            scale = math.hypot(tm[2], tm[3]) * math.hypot(cm[2], cm[3])
+            eff = float(size) * (scale or 1.0)
             why = []
-            if all(c >= 0.95 for c in gs["fill"]):
+            on_dark = any(a <= x <= c and b <= y <= d for a, b, c, d in dark)
+            if all(c >= 0.95 for c in gs["fill"]) and not on_dark:
                 why.append("white text")
             if gs["mode"] == 3:
                 why.append("invisible render mode")
@@ -197,6 +255,7 @@ def clean_pdf(path: Path) -> tuple[str, list[dict]]:
                 visible.append(text)
 
         page.extract_text(visitor_operand_before=before, visitor_text=on_text)
+        visible.append("\n")  # keep the last line of one page apart from the first line of the next
     lines = (" ".join(line.split()) for line in "".join(visible).splitlines())
     return "\n".join(line for line in lines if line), removed
 

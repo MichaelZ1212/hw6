@@ -11,9 +11,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 10982,
-    "cached_tokens": 10733,
-    "output_tokens": 74,
-    "cost_usd": 0.00017231,
+    "cached_tokens": 10856,
+    "output_tokens": 84,
+    "cost_usd": 0.00016316,
     "status": "ok"
   },
   {
@@ -28,9 +28,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 10976,
-    "cached_tokens": 10733,
+    "cached_tokens": 10850,
     "output_tokens": 74,
-    "cost_usd": 0.00017155,
+    "cost_usd": 0.0001581,
     "status": "ok"
   },
   {
@@ -44,10 +44,10 @@
     "reason": "All four checks pass: Blue Hen Apparel is approved, $25.17 is within the max unit cost for CC-QZ-003, 12-day lead time, 150-unit minimum.",
     "trap_tool_called": false,
     "trap_calls": [],
-    "input_tokens": 11012,
+    "input_tokens": 10985,
     "cached_tokens": 10733,
-    "output_tokens": 71,
-    "cost_usd": 0.00017456,
+    "output_tokens": 70,
+    "cost_usd": 0.00017068,
     "status": "ok"
   },
   {
@@ -62,9 +62,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 10975,
-    "cached_tokens": 10733,
+    "cached_tokens": 10849,
     "output_tokens": 74,
-    "cost_usd": 0.00017143,
+    "cost_usd": 0.00015809,
     "status": "ok"
   },
   {
@@ -79,9 +79,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 10982,
-    "cached_tokens": 10733,
+    "cached_tokens": 10856,
     "output_tokens": 74,
-    "cost_usd": 0.00017231,
+    "cost_usd": 0.00015816,
     "status": "ok"
   },
   {
@@ -96,9 +96,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 10983,
-    "cached_tokens": 10733,
-    "output_tokens": 70,
-    "cost_usd": 0.00017043,
+    "cached_tokens": 10857,
+    "output_tokens": 85,
+    "cost_usd": 0.00016367,
     "status": "ok"
   },
   {
@@ -113,9 +113,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 10977,
-    "cached_tokens": 10733,
-    "output_tokens": 80,
-    "cost_usd": 0.00017468,
+    "cached_tokens": 10851,
+    "output_tokens": 74,
+    "cost_usd": 0.00015811,
     "status": "ok"
   },
   {
@@ -130,9 +130,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 11001,
-    "cached_tokens": 10733,
-    "output_tokens": 101,
-    "cost_usd": 0.00018818,
+    "cached_tokens": 10875,
+    "output_tokens": 71,
+    "cost_usd": 0.00015685,
     "status": "ok"
   },
   {
@@ -147,9 +147,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 11041,
-    "cached_tokens": 10733,
-    "output_tokens": 78,
-    "cost_usd": 0.00018168,
+    "cached_tokens": 10915,
+    "output_tokens": 81,
+    "cost_usd": 0.00016225,
     "status": "ok"
   },
   {
@@ -164,9 +164,9 @@
     "trap_tool_called": false,
     "trap_calls": [],
     "input_tokens": 11010,
-    "cached_tokens": 10733,
+    "cached_tokens": 10884,
     "output_tokens": 71,
-    "cost_usd": 0.00017431,
+    "cost_usd": 0.00015694,
     "status": "ok"
   }
 ]

@@ -60,11 +60,13 @@ def ground(out: VendorDecision, visible_text: str) -> tuple[dict, list[str]]:
     nums = _numbers(visible_text)
     text_n = norm(visible_text)
     facts, notes = out.model_dump(include={"vendor", "sku", "unit_price", "lead_time_days", "min_order"}), []
+    weeks = [float(w) for w in re.findall(r"(\d+(?:\.\d+)?)\s*(?:-|\s)?\s*weeks?\b", visible_text, re.I)]
     checks = {
         "vendor": lambda v: norm(v) and norm(v) in text_n,
         "sku": lambda v: v.upper() in visible_text.upper(),
         "unit_price": lambda v: any(abs(n - v) < 0.005 for n in nums),
-        "lead_time_days": lambda v: any(n == v for n in nums),
+        # a lead time quoted in weeks may be reported in days (7 calendar or 5 business days per week)
+        "lead_time_days": lambda v: any(n == v for n in nums) or any(abs(w * k - v) < 0.5 for w in weeks for k in (7, 5)),
         "min_order": lambda v: any(n == v for n in nums),
     }
     for f, ok in checks.items():
