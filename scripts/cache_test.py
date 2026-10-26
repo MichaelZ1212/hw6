@@ -51,7 +51,7 @@ def run_setup(mode: str, docs: list[Path]) -> list[dict]:
         rel = doc.relative_to(ROOT).as_posix()
         print(f"[{mode}] {doc.name} ...", flush=True)
         try:
-            rec = agent.run(rel, cache=(mode == "cached"))
+            rec = agent.run(rel, cache=(mode == "cached"), mode="baseline")  # Problem 3 agent, as measured in Problem 4
         except Exception as e:  # keep going; a failed call is flagged, not counted
             rows.append({"doc": doc.name, "cache_mode": mode, "status": "failed",
                          "error": f"{type(e).__name__}: {e}", "trace": traceback.format_exc()[-800:]})

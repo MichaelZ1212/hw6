@@ -530,7 +530,8 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; backgroun
   function handbookDecision(r) {
     if (!r.vendor) return "do_not_recommend";
     const v = norm(r.vendor);
-    if (HB.blocked.includes(v) || !HB.approved.includes(v)) return "do_not_recommend";
+    const listed = (names) => names.some((n) => v === n || v.startsWith(n));
+    if (listed(HB.blocked) || !listed(HB.approved)) return "do_not_recommend";
     const max = HB.max_cost[(r.sku || "").toUpperCase()];
     if (max == null || r.unit_price == null || r.unit_price > max) return "do_not_recommend";
     if (r.lead_time_days == null || r.lead_time_days > 21) return "do_not_recommend";

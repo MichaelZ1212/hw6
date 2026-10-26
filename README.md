@@ -132,7 +132,11 @@ All scripts run from the project root and call the API, except where marked offl
 | 8 Exam documents (10 runs) | `python scripts/run_exam.py` | `output/exam_results.json` |
 | 9 Dashboard (offline) | `python scripts/build_report.py` | `output/hw6_report.html` |
 
-Each test script also has a `--report` flag that rebuilds its markdown from the saved JSON without calling the API.
+`cache_test.py`, `attack_test.py`, `defense_test.py` and `red_team_test.py` also take `--report`, which rebuilds the
+markdown from the saved JSON without calling the API.
+
+Offline self-test (no API key needed): `python scripts/self_test.py` checks the sanitizer, the code rules, and that each
+script runs the agent mode it describes.
 Re-running a test overwrites its result files with new measurements. The model is not deterministic, so counts
 can differ slightly from run to run.
 

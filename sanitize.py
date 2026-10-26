@@ -50,11 +50,12 @@ def hidden_style(style: str) -> str | None:
         return "CSS visibility:hidden"
     if re.search(r"(^|;)opacity:0*(\.0+)?(;|$)", s):
         return "CSS opacity:0"
-    m = re.search(r"font-size:([\d.]+)(px|pt)?(;|$)", s)
-    if m and float(m.group(1)) <= 2:
-        return f"CSS font-size:{m.group(1)}{m.group(2) or ''}"
-    if re.search(r"(^|;)color:(#fff(fff)?|white|rgba?\(255,255,255)", s):
-        return "white text"
+    m = re.search(r"font-size:([\d.]+)(px|pt|em|rem|%)?(!important)?(;|$)", s)
+    if m:
+        size, unit = float(m.group(1)), m.group(2) or "px"
+        limit = {"px": 2, "pt": 2, "em": 0.2, "rem": 0.2, "%": 20}[unit]
+        if size <= limit:
+            return f"CSS font-size:{m.group(1)}{m.group(2) or ''}"
     if re.search(r"(^|;)(height|width|max-height):0(px)?(;|$)", s) and "overflow:hidden" in s:
         return "zero-size box"
     if re.search(r"(left|top|text-indent):-\d{3,}", s):
@@ -62,16 +63,32 @@ def hidden_style(style: str) -> str | None:
     return None
 
 
+WHITE = re.compile(r"^(#fff(fff)?|white|rgba?\(255,255,255(,1(\.0*)?)?\))$")
+
+
+def _css(style: str, prop: str) -> str | None:
+    """Value of one CSS property in an inline style (spaces removed, lower case)."""
+    m = re.search(rf"(?:^|;){prop}:([^;]+)", style.replace(" ", "").lower())
+    return m.group(1).replace("!important", "") if m else None
+
+
 class _VisibleHTML(HTMLParser):
+    """Visible text of an HTML page. Each open element is a stack entry (tag, hiding technique,
+    background colour); end tags pop back to their matching start tag, so unclosed children
+    (<p>, <li>, ...) cannot leave a hidden state behind."""
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.stack: list[str | None] = []
+        self.stack: list[tuple[str, str | None, str | None]] = []
         self.out: list[str] = []
         self.removed: list[dict] = []
         self._hidden_buf: list[str] = []
 
     def _hiding(self) -> str | None:
-        return next((h for h in reversed(self.stack) if h), None)
+        return next((h for _, h, _ in reversed(self.stack) if h), None)
+
+    def _background(self) -> str:
+        return next((bg for _, _, bg in reversed(self.stack) if bg), "#ffffff")
 
     def handle_starttag(self, tag, attrs):
         if tag in BLOCK:
@@ -79,24 +96,36 @@ class _VisibleHTML(HTMLParser):
         if tag in VOID:
             return
         a = dict(attrs)
-        how = hidden_style(a.get("style") or "")
+        style = a.get("style") or ""
+        how = hidden_style(style)
+        bg = _css(style, "background-color") or _css(style, "background")
+        color = _css(style, "color")
+        # White text is only invisible on a white (or unset) background; white on a dark banner is legitimate.
+        if not how and color and WHITE.match(color) and WHITE.match(bg or self._background()):
+            how = "white text"
         if "hidden" in a:
             how = "hidden attribute"
         if tag in CODE_TAGS:
             how = f"<{tag}> element"
-        self.stack.append(how)
+        self.stack.append((tag, how, bg))
 
     def handle_endtag(self, tag):
-        if tag in VOID or not self.stack:
-            return
-        how = self.stack.pop()
+        if tag in VOID or not any(t == tag for t, _, _ in self.stack):
+            return  # stray end tag: ignore instead of popping someone else's state
+        while self.stack:
+            t, how, _ = self.stack.pop()
+            self._flush(how)
+            if t == tag:
+                break
+        if tag in ("td", "th"):
+            self.out.append(" ")
+
+    def _flush(self, how: str | None) -> None:
         if how and not self._hiding():
             text = " ".join("".join(self._hidden_buf).split())
             self._hidden_buf = []
             if text and how != "<style> element":  # stylesheets are layout code, not worth logging
                 self.removed.append({"technique": how, "text": text})
-        if tag in ("td", "th"):
-            self.out.append(" ")
 
     def handle_data(self, data):
         (self._hidden_buf if self._hiding() else self.out).append(data)
@@ -110,6 +139,8 @@ def clean_html(html: str) -> tuple[str, list[dict]]:
     p = _VisibleHTML()
     p.feed(html)
     p.close()
+    while p.stack:  # unclosed elements at the end of the document
+        p._flush(p.stack.pop()[1])
     lines = (" ".join(line.split()) for line in "".join(p.out).splitlines())
     return "\n".join(line for line in lines if line), p.removed
 

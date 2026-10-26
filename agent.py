@@ -276,6 +276,10 @@ def main() -> None:
     parser.add_argument("--mode", choices=list(MODES), default=DEFAULT_MODE, help="Safety layers to use")
     parser.add_argument("--baseline", action="store_true", help="Run the original agent with no protections")
     args = parser.parse_args()
+    try:
+        resolve_doc(args.doc)
+    except (FileNotFoundError, ValueError) as e:
+        raise SystemExit(f"Error: {e}")
     out = run(args.doc, cache=not args.no_cache, mode="baseline" if args.baseline else args.mode)
     print(json.dumps(out["recommendation"], indent=2))
 

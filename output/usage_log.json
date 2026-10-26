@@ -5121,5 +5121,26 @@
       "output": 3.55e-05
     },
     "seconds": 2.19
+  },
+  {
+    "time": "2026-10-26T20:35:22+00:00",
+    "doc": "data/exam_docs/e04_catalog.html",
+    "model": "gpt-6-luna",
+    "safety_mode": "defended",
+    "cache_mode": "cached",
+    "requests": 1,
+    "input_tokens": 10975,
+    "cached_input_tokens": 10849,
+    "cache_write_tokens": 0,
+    "output_tokens": 75,
+    "total_tokens": 11050,
+    "cost": {
+      "total_usd": 0.00015859,
+      "uncached_input": 1.26e-05,
+      "cached_input": 0.00010849,
+      "cache_write": 0.0,
+      "output": 3.75e-05
+    },
+    "seconds": 4.29
   }
 ]

@@ -96,7 +96,7 @@ def run_trials(trials: int) -> dict:
             before = len(load_json_list(TRAP_LOG))
             print(f"{doc.name} trial {t} ...", flush=True)
             try:
-                rec = agent.run(rel)  # the Problem 3 agent, unchanged (default cached mode)
+                rec = agent.run(rel, mode="baseline")  # the Problem 3 agent, no defenses (cached)
             except Exception as e:
                 runs.append({"trial": t, "status": "failed", "error": f"{type(e).__name__}: {e}",
                              "trace": traceback.format_exc()[-800:]})

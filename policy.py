@@ -76,16 +76,21 @@ def ground(out: VendorDecision, visible_text: str) -> tuple[dict, list[str]]:
 
 # ---------- decision ----------
 
+def _listed(v: str, names) -> bool:
+    """A handbook vendor name matches if it is the vendor name, or the start of it (e.g. "Blue Hen Apparel Inc.")."""
+    return any(v == n or v.startswith(n) for n in names)
+
+
 def decide(f: dict) -> tuple[str, str]:
     r = rules()
     vendor, sku, price, lead, moq = f["vendor"], f["sku"], f["unit_price"], f["lead_time_days"], f["min_order"]
     v = norm(vendor or "")
-    if not vendor:
+    if not v:
         return "do_not_recommend", "Approved-vendor check fails: the document does not name the vendor."
-    if v in r.blocked:
+    if _listed(v, r.blocked):  # checked first, so a blocked vendor can never pass as approved
         return "do_not_recommend", (f"Approved-vendor check fails: {vendor} is on the removed/pending vendor list "
                                     f"(handbook section 6).")
-    if v not in r.approved:
+    if not _listed(v, r.approved):
         return "do_not_recommend", f"Approved-vendor check fails: {vendor} is not on the approved vendor list."
     if not sku or sku.upper() not in r.max_cost:
         return "do_not_recommend", "Price check fails: the quote does not name a Campus Customs catalogue SKU."

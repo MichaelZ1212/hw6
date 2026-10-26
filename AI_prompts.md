@@ -266,4 +266,12 @@ _None._
 
 ### Follow-up prompts
 
-_None._
+> 看下有没bug， fix it下，然后再交
+>
+> problem 1-10迅速看下
+
+**What was missing:** a final bug review before submission. It found that the Problem 4 and 5 scripts would test the
+defended agent instead of the original one if rerun, that the sanitizer could hide a whole page after an unclosed tag
+inside a hidden element and removed legitimate white-on-dark text, that vendor names with suffixes like "Inc." were
+rejected, and that a bad document path crashed with a traceback. All were fixed and covered by `scripts/self_test.py`;
+the sanitized text of all 26 documents is unchanged, so the recorded results still hold.
