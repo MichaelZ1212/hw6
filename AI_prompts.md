@@ -237,4 +237,33 @@ _None._
 
 ---
 
-<!-- Add the next problem's section below as we work on it, using the actual prompts. -->
+## Problem 10: Push to GitHub and Submit the URL
+
+### Initial prompt
+
+> I've finished the previous parts of my HW6 project, and now I need to prepare everything for the final GitHub submission.
+> Please help me organize and publish the complete project to a public GitHub repository so that the graders can clone it and run the agent without any missing files.
+> First, review my current project folder and make sure all the required files are included:
+>
+> * The main Python files: `agent.py`, `tools.py`, and `models.py`
+> * The agent instructions in `prompts/prompt.md`
+> * `AI_prompts.md`, documenting the prompts I used throughout the assignment
+> * The complete `data/` folder, including the handbook, pricing information, answer key, all 12 practice documents, all 10 exam documents, and my two custom attack files
+> * All output files generated in Problems 2–9, including the experiment logs, attack and defense results, exam results, and final HTML dashboard
+>
+> Please also create or update the following files:
+>
+> 1. README.md: Explain what the project does, how to install the dependencies, how to configure the API key, and how to run the vendor desk agent on a sample document. Include the exact terminal commands.
+> 2. requirements.txt: List all Python dependencies needed to run the project.
+> 3. .gitignore: Make sure sensitive information such as `.env`, API keys, virtual environments, and unnecessary temporary files are excluded from Git.
+> 4. .env.example: Provide an example of the required environment variables using placeholders only, without any real credentials.
+>
+> Before uploading anything, check that the project is complete and that no required files are missing. Also verify that the agent can run using the documented setup instructions.
+> Please check the files for exposed API keys, passwords, or other sensitive information. Do not upload any real credentials.
+> Once everything is ready, help me create a public GitHub repository named `hw6` and push the complete project to it. If GitHub authentication or authorization is needed, ask me to complete that step.
+> Finally, verify that the repository is publicly accessible, that all required files are present, and that the README provides enough instructions for the graders to reproduce the project.
+> Give me the final GitHub repository URL so I can submit it on Canvas. Do not submit anything to Canvas on my behalf.
+
+### Follow-up prompts
+
+_None._
