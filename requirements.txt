@@ -1,0 +1,18 @@
+# Python 3.11+ (developed and tested on Python 3.14)
+
+# Agent: PydanticAI with the OpenAI-compatible client, pointed at the Portkey gateway (gpt-6-luna)
+pydantic-ai-slim[openai]>=2.45,<3
+openai>=1.50
+
+# Reading vendor documents
+pypdf>=5.0
+
+# Loads PORTKEY_API_KEY from .env
+python-dotenv>=1.0
+
+# Token counting for the handbook estimate (Problem 2) and the defense report (Problem 6)
+tiktoken>=0.8
+
+# Building and checking the Problem 7 red-team documents (scripts/build_red_team_docs.py)
+reportlab>=4.0
+pypdfium2>=4.0

@@ -1,0 +1,7 @@
+# Default: normalise line endings for text files.
+* text=auto
+# Later lines win: keep vendor documents and images byte-for-byte identical (no line-ending conversion).
+data/** -text
+*.pdf binary
+*.eml -text
+*.png binary

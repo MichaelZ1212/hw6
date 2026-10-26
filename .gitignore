@@ -1,0 +1,31 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+API Keys.txt
+*KEY*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local files that are not part of the project
+Claude Setup.exe
+*.exe
+data.zip
+*.log
+*.tmp
+output/approval_log.json
